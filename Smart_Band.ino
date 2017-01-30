@@ -4,32 +4,34 @@
 #include <Wire.h>
 #include <RtcDS3231.h>
 #include <U8x8lib.h>
-//LED
-#define NUM_LEDS 1
+
+//------------------Constants-----------------------------//
+// Pins
+#define INTERRUPT_PIN 2
 #define LED_PIN 3
-CRGB leds[NUM_LEDS]; // Initialize the LED array
-//LED end
+#define BLUETOOTH_STATE_PIN 4
+#define BUTTON_PIN 5
 
-//OLED
-U8X8_SSD1306_128X32_UNIVISION_HW_I2C u8x8; // Initialize the OLED screen
-//OLED end
-
-//MAX 30100
-
-//MAX 30100 end
-//RTC
-RtcDS3231<TwoWire> Rtc(Wire);
-RtcDateTime now;
-char* now_char;
-char* printDateTime(const RtcDateTime& dt);
+// Interface state
+#define CONNECTION_STATE 0
+#define TIME_DATE 1
+#define STEP_AMOUNT 2
+#define SLEEP_QUALITY 3
+#define BIO_STATE 4
+#define MAX_DISPLAY_STATE 5
+// Others
+#define NUM_LEDS 1
 #define countof(a) (sizeof(a) / sizeof(a[0]))
-//RTC End
-
-//MPU6050
-MPU6050 mpu(0x69);
 #define OUTPUT_READABLE_YAWPITCHROLL
 #define OUTPUT_READABLE_REALACCEL
-#define INTERRUPT_PIN 2
+
+//-----------------Initialize sensors-----------------------//
+CRGB leds[NUM_LEDS]; // Initialize the LED array
+U8X8_SSD1306_128X32_UNIVISION_HW_I2C u8x8; // Initialize the OLED screen
+RtcDS3231<TwoWire> Rtc(Wire);
+MPU6050 mpu(0x69);
+
+//-----------------Initialize vars & functions-------------------//
 // MPU control/status vars
 bool dmpReady = false;  // set true if DMP init was successful
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
@@ -48,22 +50,19 @@ volatile bool mpuInterrupt = false;
 void dmpDataReady() {
   mpuInterrupt = true;
 }
-char* str;
-//MPU6050 End
-
-//Interface
+// RTC vars & function
+RtcDateTime now; //
+char* now_char;
+char* printDateTime(const RtcDateTime& dt);
+// Interface vars & function
 bool button_down = false;
-short display_state = 0;
-short pre_display_state = display_state;
-short button_pin = 5;
+bool bluetooth_connection = false;
+char display_state = -1;
+char pre_display_state = -1;
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C);
 
-//Bluetooth
-bool bluetooth_connection = false;
-short bluetooth_state_pin = 4;
-
-
-
+//-------------------------------------------Main Function------------------------------------------------------//
+//-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
   Serial.begin(9600);
   //Start initialization
@@ -119,13 +118,15 @@ void setup() {
 
   // configure LED for output
   pinMode(LED_PIN, OUTPUT);
-  pinMode(bluetooth_state_pin, INPUT);
-  pinMode(button_pin, INPUT_PULLUP);
+  pinMode(BLUETOOTH_STATE_PIN NUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
   Serial.println("Initialization completed");
   //Finish initialization
 }
 
+//----------------------------------------Main Loop---------------------------------------------//
 void loop() {
+// Get results from MPU6050
   if (!dmpReady) return;
   while (!mpuInterrupt && fifoCount < packetSize)
     mpuInterrupt = false;
@@ -152,51 +153,60 @@ void loop() {
     //Serial.println(ypr[2] * 180 / M_PI);
 
   }
-  if (digitalRead(button_pin) == HIGH && !button_down) {
+
+  // Check if button was down
+  if (digitalRead(BUTTON_PIN) == HIGH && !button_down) {
     display_state++; // Change state
     button_down = true;
   }
-  else if (digitalRead(button_pin) == LOW && button_down) button_down = false; // Release the button!
-  if (display_state == 5) display_state = 0; // Switch back
+  else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
+
+  // Switching states
+  if (display_state == MAX_DISPLAY_STATE) display_state = CONNECTION_STATE; // Switch back
   u8x8.setFont(u8x8_font_amstrad_cpc_extended_f);
-  Serial.print("State: ");
+  /*Serial.print("State: ");
   Serial.print(display_state);
   Serial.print("\t Pre: ");
-  Serial.println(pre_display_state);
-  switch (display_state) { // 0 for Connection_state, 1 for time, 2 for pitch, 3 for roll, 4 for az,
-    case 0:
+  Serial.println(pre_display_state);*/
+  switch (display_state) { // 0 for Connection_state, 1 for time, 2 for step, 3 for sleep quality, 4 for az,
+    case CONNECTION_STATE:
       pre_state_check(u8x8);
+      u8x8.home();
       u8x8.print("Connection: ");
       u8x8.print(bluetooth_connection);
       break;
-    case 1:
+    case TIME_DATE:
       pre_state_check(u8x8);
+      u8x8.home();
       now =Rtc.GetDateTime();
       now_char=printDateTime(now);
       u8x8.print("Time: \n");
       u8x8.print(now_char);
       break;
-    case 2:
+    case STEP_AMOUNT:
+    pre_state_check(u8x8);
       // do something
       break;
-    case 3:
+    case SLEEP_QUALITY:
+    pre_state_check(u8x8);
       // do something
       break;
-    case 4:
+    case BIO_STATE:
+    pre_state_check(u8x8);
       // do something
       break;
   }
-  //dtostrf(ypr[0]*180/M_PI,2,2,str);
 
 }
+
+//----------------------------------Functions--------------------------------//
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C oled) {
   if (pre_display_state != display_state) {
-    oled.clear();
+    
     pre_display_state = display_state;
-  }
-  else {
-    oled.home();
-  }
+    oled.clear();
+    //Serial.print("Check");
+  }//Can not use oled.home();
 }
 
 char* printDateTime(const RtcDateTime& dt)
@@ -205,12 +215,13 @@ char* printDateTime(const RtcDateTime& dt)
 
     snprintf_P(datestring, 
             countof(datestring),
-            PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+            PSTR("%02u/%02u/%04u\n%02u:%02u:%02u"),
             dt.Month(),
             dt.Day(),
             dt.Year(),
             dt.Hour(),
             dt.Minute(),
             dt.Second() );
+    //Serial.println(datestring);
     return datestring;
 }
