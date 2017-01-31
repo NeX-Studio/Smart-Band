@@ -11,6 +11,7 @@
 #define LED_PIN 3
 #define BLUETOOTH_STATE_PIN 4
 #define BUTTON_PIN 5
+#define VIBRATOR_PIN 6
 
 // Interface state
 #define CONNECTION_STATE 0
@@ -19,6 +20,7 @@
 #define SLEEP_QUALITY 3
 #define BIO_STATE 4
 #define MAX_DISPLAY_STATE 5
+
 // Others
 #define NUM_LEDS 1
 #define countof(a) (sizeof(a) / sizeof(a[0]))
@@ -56,10 +58,13 @@ char* now_char;
 char* printDateTime(const RtcDateTime& dt);
 // Interface vars & function
 bool button_down = false;
-bool bluetooth_connection = false;
 char display_state = -1;
 char pre_display_state = -1;
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C);
+// Bluetooth connection
+bool bluetooth_connection = false;
+void bluetooth_connection_checker();
+void vibrator(bool);
 
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
@@ -118,7 +123,8 @@ void setup() {
 
   // configure LED for output
   pinMode(LED_PIN, OUTPUT);
-  pinMode(BLUETOOTH_STATE_PIN NUT);
+  pinMode(VIBRATOR_PIN, OUTPUT);
+  pinMode(BLUETOOTH_STATE_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   Serial.println("Initialization completed");
   //Finish initialization
@@ -126,7 +132,8 @@ void setup() {
 
 //----------------------------------------Main Loop---------------------------------------------//
 void loop() {
-// Get results from MPU6050
+  //----------------------------------------Get data from sensors---------------------------------//
+  // Get results from MPU6050
   if (!dmpReady) return;
   while (!mpuInterrupt && fifoCount < packetSize)
     mpuInterrupt = false;
@@ -154,46 +161,54 @@ void loop() {
 
   }
 
+  // Check for bluetooth connection
+  Serial.println(bluetooth_connection);
+  bluetooth_connection_checker();
+  //----------------------------------------Decode serial data---------------------------------//
+
+  //----------------------------------------Display--------------------------------------------//
   // Check if button was down
   if (digitalRead(BUTTON_PIN) == HIGH && !button_down) {
     display_state++; // Change state
     button_down = true;
   }
   else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
-
+  //Serial.println(bluetooth_connection);
   // Switching states
   if (display_state == MAX_DISPLAY_STATE) display_state = CONNECTION_STATE; // Switch back
   u8x8.setFont(u8x8_font_amstrad_cpc_extended_f);
   /*Serial.print("State: ");
-  Serial.print(display_state);
-  Serial.print("\t Pre: ");
-  Serial.println(pre_display_state);*/
-  switch (display_state) { // 0 for Connection_state, 1 for time, 2 for step, 3 for sleep quality, 4 for az,
+    Serial.print(display_state);
+    Serial.print("\t Pre: ");
+    Serial.println(pre_display_state);*/
+  switch (display_state) {
     case CONNECTION_STATE:
       pre_state_check(u8x8);
-      u8x8.home();
+      u8x8.home();// Reset cursor
       u8x8.print("Connection: ");
       u8x8.print(bluetooth_connection);
       break;
     case TIME_DATE:
       pre_state_check(u8x8);
-      u8x8.home();
-      now =Rtc.GetDateTime();
-      now_char=printDateTime(now);
+      u8x8.home();// Reset cursor
+      now = Rtc.GetDateTime();
+      now_char = printDateTime(now);
       u8x8.print("Time: \n");
       u8x8.print(now_char);
       break;
-    case STEP_AMOUNT:
-    pre_state_check(u8x8);
-      // do something
+    case STEP_AMOUNT: // steps
+      pre_state_check(u8x8);
+      u8x8.home();// Reset cursor
+      u8x8.print("Today's steps: ");
       break;
-    case SLEEP_QUALITY:
-    pre_state_check(u8x8);
-      // do something
+    case SLEEP_QUALITY: // quality & quantity
+      pre_state_check(u8x8);
+      u8x8.home();// Reset cursor
+      u8x8.print("Last 24hrs\nsleeptime: ");
       break;
-    case BIO_STATE:
-    pre_state_check(u8x8);
-      // do something
+    case BIO_STATE: // heart rate
+      pre_state_check(u8x8);
+      u8x8.home();// Reset cursor
       break;
   }
 
@@ -202,7 +217,6 @@ void loop() {
 //----------------------------------Functions--------------------------------//
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C oled) {
   if (pre_display_state != display_state) {
-    
     pre_display_state = display_state;
     oled.clear();
     //Serial.print("Check");
@@ -211,17 +225,44 @@ void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C oled) {
 
 char* printDateTime(const RtcDateTime& dt)
 {
-    char datestring[20];
+  char datestring[20];
 
-    snprintf_P(datestring, 
-            countof(datestring),
-            PSTR("%02u/%02u/%04u\n%02u:%02u:%02u"),
-            dt.Month(),
-            dt.Day(),
-            dt.Year(),
-            dt.Hour(),
-            dt.Minute(),
-            dt.Second() );
-    //Serial.println(datestring);
-    return datestring;
+  snprintf_P(datestring,
+             countof(datestring),
+             PSTR("%02u/%02u/%04u\n%02u:%02u:%02u"),
+             dt.Month(),
+             dt.Day(),
+             dt.Year(),
+             dt.Hour(),
+             dt.Minute(),
+             dt.Second() );
+  //Serial.println(datestring);
+  return datestring;
 }
+
+void bluetooth_connection_checker() {
+  if (digitalRead(BLUETOOTH_STATE_PIN) == HIGH) {
+    bluetooth_connection = true;
+  }
+  else {
+    if (bluetooth_connection==true) {
+      	vibrator(true);
+      	Serial.println("Lost connection");
+    	display_state = 0;
+    }
+    bluetooth_connection = false;
+    vibrator(false);
+    //vibrator();// This will run every loop
+  }
+}
+
+void vibrator(bool on) {
+	if (on){
+		digitalWrite(VIBRATOR_PIN,HIGH);
+		delay(200);
+	}
+	else{
+		digitalWrite(VIBRATOR_PIN, LOW);
+	}
+}
+
