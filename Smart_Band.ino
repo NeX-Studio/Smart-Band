@@ -1,3 +1,4 @@
+//------------------Dependencies------------------------//
 #include "FastLED.h"
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
@@ -50,7 +51,7 @@ float euler[3];
 float ypr[3];  			    // Yaw, Pitch, Roll
 volatile bool mpuInterrupt = false;
 void dmpDataReady() {
-  mpuInterrupt = true;
+	mpuInterrupt = true;
 }
 // RTC vars & function
 RtcDateTime now; //
@@ -69,7 +70,7 @@ void vibrator(bool);
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
-  Serial.begin(9600);
+	Serial.begin(9600);
   //Start initialization
   //Serial.println("System initializing...");
   //Serial.println("Initializing modules...");
@@ -111,7 +112,7 @@ void setup() {
 
     // get expected DMP packet size for later comparison
     packetSize = mpu.dmpGetFIFOPacketSize();
-  } else {
+    } else {
     // ERROR!
     // 1 = initial memory load failed
     // 2 = DMP configuration updates failed
@@ -119,7 +120,7 @@ void setup() {
     /*	Serial.print(F("DMP Initialization failed (code "));
     	Serial.print(devStatus);
     	Serial.println(F(")"));	*/
-  }
+    }
 
   // configure LED for output
   pinMode(LED_PIN, OUTPUT);
@@ -136,7 +137,7 @@ void loop() {
   // Get results from MPU6050
   if (!dmpReady) return;
   while (!mpuInterrupt && fifoCount < packetSize)
-    mpuInterrupt = false;
+  mpuInterrupt = false;
   mpuIntStatus = mpu.getIntStatus();
   fifoCount = mpu.getFIFOCount();
   if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
@@ -145,13 +146,15 @@ void loop() {
     //Serial.println(F("FIFO overflow!"));
 
     // otherwise, check for DMP data ready interrupt (this should happen frequently)
-  } else if (mpuIntStatus & 0x02) {
-    while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
-    mpu.getFIFOBytes(fifoBuffer, packetSize);
-    fifoCount -= packetSize;
-    mpu.dmpGetQuaternion(&qu, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &qu);
-    mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);
+    } else if (mpuIntStatus & 0x02) {
+    	while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
+    	mpu.getFIFOBytes(fifoBuffer, packetSize);
+    	fifoCount -= packetSize;
+    	mpu.dmpGetQuaternion(&qu, fifoBuffer);
+    	mpu.dmpGetGravity(&gravity, &qu);
+    	mpu.dmpGetAccel(&aa,fifoBuffer);
+    	mpu.dmpGetLinearAccel(&aaReal,&aa,&gravity);	// Get acceleration
+    	mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);		// Get YawPitchRoll
     //Serial.print("ypr\t");
     //Serial.print(ypr[0] * 180 / M_PI);
     //Serial.print("\t");
@@ -159,7 +162,7 @@ void loop() {
     //Serial.print("\t");
     //Serial.println(ypr[2] * 180 / M_PI);
 
-  }
+}
 
   // Check for bluetooth connection
   //Serial.println(bluetooth_connection);
@@ -171,7 +174,7 @@ void loop() {
   if (digitalRead(BUTTON_PIN) == HIGH && !button_down) {
     display_state++; // Change state
     button_down = true;
-  }
+}
   else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
   //Serial.println(bluetooth_connection);
   // Switching states
@@ -181,78 +184,76 @@ void loop() {
     Serial.print(display_state);
     Serial.print("\t Pre: ");
     Serial.println(pre_display_state);*/
-  switch (display_state) {
-    case CONNECTION_STATE:
-      pre_state_check(u8x8);
-      u8x8.home();// Reset cursor
-      u8x8.print("Connection: ");
-      u8x8.print(bluetooth_connection);
-      break;
-    case TIME_DATE:
-      pre_state_check(u8x8);
-      u8x8.home();// Reset cursor
-      now = Rtc.GetDateTime();
-      now_char = printDateTime(now);
-      u8x8.print("Time: \n");
-      u8x8.print(now_char);
-      break;
-    case STEP_AMOUNT: // steps
-      pre_state_check(u8x8);
-      u8x8.home();// Reset cursor
-      u8x8.print("Today's steps: ");
-      break;
-    case SLEEP_QUALITY: // quality & quantity
-      pre_state_check(u8x8);
-      u8x8.home();// Reset cursor
-      u8x8.print("Last 24hrs\nsleeptime: ");
-      break;
-    case BIO_STATE: // heart rate
-      pre_state_check(u8x8);
-      u8x8.home();// Reset cursor
-      break;
-  }
+    switch (display_state) {
+    	case CONNECTION_STATE:
+    		pre_state_check(u8x8);
+      		u8x8.home();// Reset cursor
+      		u8x8.print("Connection: ");
+      		u8x8.print(bluetooth_connection);
+      	break;
+      	case TIME_DATE:
+      		pre_state_check(u8x8);
+      		u8x8.home();// Reset cursor
+      		now = Rtc.GetDateTime();
+      		now_char = printDateTime(now);
+      		u8x8.print("Time: \n");
+      		u8x8.print(now_char);
+      	break;
+    	case STEP_AMOUNT: // steps
+    		pre_state_check(u8x8);
+      		u8x8.home();// Reset cursor
+      		u8x8.print("Today's steps: ");
+      	break;
+    	case SLEEP_QUALITY: // quality & quantity
+    		pre_state_check(u8x8);
+      		u8x8.home();// Reset cursor
+      		u8x8.print("Last 24hrs\nsleeptime: ");
+      	break;
+    	case BIO_STATE: // heart rate
+    		pre_state_check(u8x8);
+      		u8x8.home();// Reset cursor
+      	break;
+  	}
 
 }
 
 //----------------------------------Functions--------------------------------//
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C oled) {
-  if (pre_display_state != display_state) {
-    pre_display_state = display_state;
-    oled.clear();
+	if (pre_display_state != display_state) {
+		pre_display_state = display_state;
+		oled.clear();
     //Serial.print("Check");
-  }//Can not use oled.home();
+  	}//Can not use oled.home();
 }
 
-char* printDateTime(const RtcDateTime& dt)
-{
-  char datestring[20];
-
-  snprintf_P(datestring,
-             countof(datestring),
-             PSTR("%02u/%02u/%04u\n%02u:%02u:%02u"),
-             dt.Month(),
-             dt.Day(),
-             dt.Year(),
-             dt.Hour(),
-             dt.Minute(),
-             dt.Second() );
-  //Serial.println(datestring);
-  return datestring;
+char* printDateTime(const RtcDateTime& dt){
+	char datestring[20];
+	snprintf_P(datestring,
+		countof(datestring),
+		PSTR("%02u/%02u/%04u\n%02u:%02u:%02u"),
+		dt.Month(),
+		dt.Day(),
+		dt.Year(),
+		dt.Hour(),
+		dt.Minute(),
+		dt.Second() );
+  	//Serial.println(datestring);
+  	return datestring;
 }
 
 void bluetooth_connection_checker() {
-  if (digitalRead(BLUETOOTH_STATE_PIN) == HIGH) {
-    bluetooth_connection = true;
-  }
-  else {
-    if (bluetooth_connection==true) {
-      	vibrator(true);
+	if (digitalRead(BLUETOOTH_STATE_PIN) == HIGH) {
+		bluetooth_connection = true;
+	}
+	else {
+		if (bluetooth_connection==true) {
+			vibrator(true);
       	//Serial.println("Lost connection");
-    	display_state = 0;
-    }
-    bluetooth_connection = false;
-    vibrator(false);
-  }
+      	display_state = CONNECTION_STATE;
+      	}
+      	bluetooth_connection = false;
+      	vibrator(false);
+  	}
 }
 
 void vibrator(bool on) {
