@@ -71,23 +71,23 @@ void vibrator(bool);
 void setup() {
   Serial.begin(9600);
   //Start initialization
-  Serial.println("System initializing...");
-  Serial.println("Initializing modules...");
+  //Serial.println("System initializing...");
+  //Serial.println("Initializing modules...");
   Wire.begin();
   Wire.setClock(400000);
   u8x8.begin();
   FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
   Rtc.Begin();
   mpu.initialize();
-  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   // wait for ready
   //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   // while (Serial.available() && Serial.read()); // empty buffer
   //while (!Serial.available());                 // wait for data
-  while (Serial.available() && Serial.read()); // empty buffer again
+  while (Serial.available() && Serial.read()); // Empty buffer
 
   // load and configure the DMP
-  Serial.println(F("Initializing DMP..."));
+  //Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();
 
   // supply your own gyro offsets here, scaled for min sensitivity
@@ -97,16 +97,16 @@ void setup() {
   mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
   if (devStatus == 0) {
     // turn on the DMP, now that it's ready
-    Serial.println(F("Enabling DMP..."));
+    //Serial.println(F("Enabling DMP..."));
     mpu.setDMPEnabled(true);
 
     // enable Arduino interrupt detection
-    Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+    //Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
 
     // set our DMP Ready flag so the main loop() function knows it's okay to use it
-    Serial.println(F("DMP ready! Waiting for first interrupt..."));
+    //Serial.println(F("DMP ready! Waiting for first interrupt..."));
     dmpReady = true;
 
     // get expected DMP packet size for later comparison
@@ -116,9 +116,9 @@ void setup() {
     // 1 = initial memory load failed
     // 2 = DMP configuration updates failed
     // (if it's going to break, usually the code will be 1)
-    Serial.print(F("DMP Initialization failed (code "));
-    Serial.print(devStatus);
-    Serial.println(F(")"));
+    /*	Serial.print(F("DMP Initialization failed (code "));
+    	Serial.print(devStatus);
+    	Serial.println(F(")"));	*/
   }
 
   // configure LED for output
@@ -126,7 +126,7 @@ void setup() {
   pinMode(VIBRATOR_PIN, OUTPUT);
   pinMode(BLUETOOTH_STATE_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  Serial.println("Initialization completed");
+  //Serial.println("Initialization completed");
   //Finish initialization
 }
 
@@ -162,7 +162,7 @@ void loop() {
   }
 
   // Check for bluetooth connection
-  Serial.println(bluetooth_connection);
+  //Serial.println(bluetooth_connection);
   bluetooth_connection_checker();
   //----------------------------------------Decode serial data---------------------------------//
 
@@ -247,19 +247,18 @@ void bluetooth_connection_checker() {
   else {
     if (bluetooth_connection==true) {
       	vibrator(true);
-      	Serial.println("Lost connection");
+      	//Serial.println("Lost connection");
     	display_state = 0;
     }
     bluetooth_connection = false;
     vibrator(false);
-    //vibrator();// This will run every loop
   }
 }
 
 void vibrator(bool on) {
 	if (on){
 		digitalWrite(VIBRATOR_PIN,HIGH);
-		delay(200);
+		delay(500);
 	}
 	else{
 		digitalWrite(VIBRATOR_PIN, LOW);
