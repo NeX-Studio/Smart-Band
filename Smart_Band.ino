@@ -9,7 +9,9 @@
 //------------------Constants-----------------------------//
 // Pins
 #define INTERRUPT_PIN 2
+//#define INTERRUPT_PIN 7 // 7 for Leonardo, using #5 int
 #define LED_PIN 3
+//#define LED_PIN 8 // 8 for leonardo
 #define BLUETOOTH_STATE_PIN 4
 #define BUTTON_PIN 5
 #define VIBRATOR_PIN 6
@@ -71,16 +73,22 @@ void vibrator(bool);
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
 	Serial.begin(9600);
+  while (!Serial); // wait for Leonardo enumeration, others continue immediately
   //Start initialization
-  //Serial.println("System initializing...");
+  Serial.println("System initializing...");
   //Serial.println("Initializing modules...");
   Wire.begin();
+    Serial.println("System initializing...");
   Wire.setClock(400000);
+    Serial.println("System initializing...");
   u8x8.begin();
+   Serial.println("System initializing...");
   FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
   Rtc.Begin();
-  mpu.initialize();
-  //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  //mpu.initialize();
+  
+  FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
+  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   // wait for ready
   //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   // while (Serial.available() && Serial.read()); // empty buffer
@@ -102,7 +110,7 @@ void setup() {
     mpu.setDMPEnabled(true);
 
     // enable Arduino interrupt detection
-    //Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+    Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
 
@@ -155,12 +163,12 @@ void loop() {
     	mpu.dmpGetAccel(&aa,fifoBuffer);
     	mpu.dmpGetLinearAccel(&aaReal,&aa,&gravity);	// Get acceleration
     	mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);		// Get YawPitchRoll
-    //Serial.print("ypr\t");
-    //Serial.print(ypr[0] * 180 / M_PI);
-    //Serial.print("\t");
-    //Serial.print(ypr[1] * 180 / M_PI);
-    //Serial.print("\t");
-    //Serial.println(ypr[2] * 180 / M_PI);
+    Serial.print("ypr\t");
+    Serial.print(ypr[0] * 180 / M_PI);
+    Serial.print("\t");
+    Serial.print(ypr[1] * 180 / M_PI);
+    Serial.print("\t");
+    Serial.println(ypr[2] * 180 / M_PI);
 
 }
 
@@ -175,7 +183,9 @@ void loop() {
     display_state++; // Change state
     button_down = true;
 }
+
   else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
+   Serial.println("System initializing...");
   //Serial.println(bluetooth_connection);
   // Switching states
   if (display_state == MAX_DISPLAY_STATE) display_state = CONNECTION_STATE; // Switch back
