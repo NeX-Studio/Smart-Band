@@ -24,6 +24,8 @@
 #define BIO_STATE 4
 #define MAX_DISPLAY_STATE 5
 
+// Step count
+#define MAX_LENGTH 50
 // Others
 #define NUM_LEDS 1
 #define countof(a) (sizeof(a) / sizeof(a[0]))
@@ -68,7 +70,22 @@ void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C);
 bool bluetooth_connection = false;
 void bluetooth_connection_checker();
 void vibrator(bool);
-
+// Step count
+// Base on the result of this webpage http://www.analog.com/cn/analog-dialogue/articles/pedometer-design-3-axis-digital-acceler.html by Neil Zhao
+float x_accel[MAX_LENGTH];
+float y_accel[MAX_LENGTH];
+float z_accel[MAX_LENGTH];
+float x_dynamic_threshold = 0;	// To store samples in three axes
+float y_dynamic_threshold = 0;
+float z_dynamic_threshold = 0;
+float x_dynamic_precision = 0;	// To avoid high frequency noise due to unknown reasons
+float y_dynamic_precision = 0;
+float z_dynamic_precision = 0;
+short counter = 0;				// Init counter for storing samples
+long lastsample_time = 0;
+float threshold_calculator(float *);
+float precision_calculator(float *);
+float precision_checker(float *, float, float);
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
@@ -86,8 +103,6 @@ void setup() {
   FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
   Rtc.Begin();
   //mpu.initialize();
-  
-  FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
   Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   // wait for ready
   //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
@@ -163,14 +178,21 @@ void loop() {
     	mpu.dmpGetAccel(&aa,fifoBuffer);
     	mpu.dmpGetLinearAccel(&aaReal,&aa,&gravity);	// Get acceleration
     	mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);		// Get YawPitchRoll
-    Serial.print("ypr\t");
+    /*Serial.print("ypr\t");
     Serial.print(ypr[0] * 180 / M_PI);
     Serial.print("\t");
     Serial.print(ypr[1] * 180 / M_PI);
     Serial.print("\t");
-    Serial.println(ypr[2] * 180 / M_PI);
+    Serial.println(ypr[2] * 180 / M_PI);*/
 
-}
+	}
+	if(counter != 0){
+		// Adding new samples
+		x_accel[counter] = precision_checker(x_accel, aaReal.x, x_dynamic_precision);
+		y_accel[counter] = precision_checker(y_accel, aaReal.y, y_dynamic_precision);
+		z_accel[counter] = precision_checker(z_accel, aaReal.z, z_dynamic_precision);
+		// Check if there is any step
+	}
 
   // Check for bluetooth connection
   //Serial.println(bluetooth_connection);
@@ -276,3 +298,25 @@ void vibrator(bool on) {
 	}
 }
 
+float threshold_calculator(float * data){
+	float total = 0;
+	for(int i = 0; i<MAX_LENGTH; i++ ){
+		total+=data[i];				// Count the total
+	}
+	return total/float(MAX_LENGTH); // Avoid integer divison
+}
+
+float precision_calculator(float * data){
+	float total_change = 0;
+	for(int i = 1; i < MAX_LENGTH; i++){
+		total_change+=abs(data[i]-data[i-1]);	// Acquire total change
+	}
+	return total_change/float(MAX_LENGTH);		// Avoid integer divison
+}
+
+float precision_checker(float * data, float new_data, float precision){ // Avoid noise
+	// The new_data is valid only if the change in acceleration is greator than the precision
+	// If the new_data is invalid, discard it and return the data[counter-1]
+	if(abs(new_data-data[counter-1]) > precision) return new_data;
+	else return data[counter-1];
+}
