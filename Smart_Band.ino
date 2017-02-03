@@ -29,6 +29,9 @@
 #define X_AXIS 0
 #define Y_AXIS 1
 #define Z_AXIS 2
+#define MAX_STEP_INTERVAL 2000		// In millisecond
+#define MIN_STEP_INTERVAL 500
+
 // Others
 #define NUM_LEDS 1
 #define countof(a) (sizeof(a) / sizeof(a[0]))
@@ -73,10 +76,10 @@ void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C);
 bool bluetooth_connection = false;
 void bluetooth_connection_checker();
 void vibrator(bool);
-// Step count
+//--------------------------------Step count--------------------------------//
 // Base on the result of this webpage http://www.analog.com/cn/analog-dialogue/articles/pedometer-design-3-axis-digital-acceler.html by Neil Zhao
 // Initialize containers in order to store samples in three axes
-float x_accel[MAX_LENGTH];
+float x_accel[MAX_LENGTH];	// Maybe we can change these to a 2-dimension array
 float y_accel[MAX_LENGTH];
 float z_accel[MAX_LENGTH];
 float* greatest_axis;
@@ -89,8 +92,9 @@ float dynamic_thresholds[3] = {0,0,0}; // 0 -> x, 1 -> y, 2 -> z
 // To avoid high frequency noise due to unknown reasons
 // Due to their ability to evolve every 50 samples just like the thresholds, these precisions can self-evolve to accommodate the environment
 float dynamic_precisions[3] = {0,0,0}	// 0 -> x, 1 -> y, 2 -> z
+long timer[2] =;
 short counter = 0;					// Init counter for storing samples
-long lastsample_time = 0;
+long steps = 0;
 float threshold_calculator(float *);
 float precision_calculator(float *);
 float precision_checker(float *, float, float);
@@ -187,12 +191,15 @@ void loop() {
     	mpu.dmpGetAccel(&aa,fifoBuffer);
     	mpu.dmpGetLinearAccel(&aaReal,&aa,&gravity);	// Get acceleration
     	mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);		// Get YawPitchRoll
-    /*Serial.print("ypr\t");
+    	timer[counter%2] = millis();					// Store the time arduino reads the data
+    /*
+    Serial.print("ypr\t");
     Serial.print(ypr[0] * 180 / M_PI);
     Serial.print("\t");
     Serial.print(ypr[1] * 180 / M_PI);
     Serial.print("\t");
-    Serial.println(ypr[2] * 180 / M_PI);*/
+    Serial.println(ypr[2] * 180 / M_PI);
+    */
 
 	}
 	if(counter != 0){
@@ -204,11 +211,20 @@ void loop() {
 		// First we need to find the axis that has greatest diff
 		greatest_axis = max_change(max_change(x_accel,y_accel),max_change(x_accel,z_accel));
 		// Find the corresponding threshold
-		if(greatest_axis == x_accel) greatest_axis_precision = dynamic_thresholds[X_AXIS];
-		else if(greatest_axis == y_accel) greatest_axis_precision = dynamic_thresholds[Y_AXIS];
-		else if(greatest_axis == z_accel) greatest_axis_precision = dynamic_thresholds[Z_AXIS];
+		if(greatest_axis == x_accel) greatest_axis_threshold = dynamic_thresholds[X_AXIS];
+		else if(greatest_axis == y_accel) greatest_axis_threshold = dynamic_thresholds[Y_AXIS];
+		else if(greatest_axis == z_accel) greatest_axis_threshold = dynamic_thresholds[Z_AXIS];
 		// Then we should check if the change in this axis cross its threshold
-
+		if(greatest_axis[counter] < greatest_axis_threshold && greatest_axis[counter-1] > greatest_axis_threshold){		
+			if(abs(timer[0]-timer[1]) > MIN_STEP_INTERVAL && abs(timer[0]-timer[1]) < MAX_STEP_INTERVAL) {		// Check if this step is valid
+				steps++;
+				Serial.println("One step!");
+		}
+	}
+	else if(counter == 0){ // Can we use the 50th data?
+		x_accel[counter] = aaReal.x;
+		y_accel[counter] = aaReal.y;
+		z_accel[counter] = aaReal.z;
 	}
 
   // Check for bluetooth connection
@@ -263,7 +279,17 @@ void loop() {
       		u8x8.home();// Reset cursor
       	break;
   	}
-
+  	counter++;						// Update counter
+  	if(counter == 50) counter = 0;	//Reset counter
+  	// Update threshold & precision for each axis
+  	dynamic_thresholds[X_AXIS] = threshold_calculator(x_accel);
+  	dynamic_thresholds[Y_AXIS] = threshold_calculator(y_accel);
+  	dynamic_thresholds[Z_AXIS] = threshold_calculator(z_accel);
+  	dynamic_precisions[X_AXIS] = precision_calculator(x_accel);
+  	dynamic_precisions[Y_AXIS] = precision_calculator(y_accel);
+  	dynamic_precisions[Z_AXIS] = precision_calculator(z_accel);
+  	Serial.print("Steps: ");
+  	Serial.println(steps);
 }
 
 //----------------------------------Functions--------------------------------//
