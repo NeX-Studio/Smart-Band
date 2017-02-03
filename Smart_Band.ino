@@ -26,6 +26,9 @@
 
 // Step count
 #define MAX_LENGTH 50
+#define X_AXIS 0
+#define Y_AXIS 1
+#define Z_AXIS 2
 // Others
 #define NUM_LEDS 1
 #define countof(a) (sizeof(a) / sizeof(a[0]))
@@ -72,20 +75,24 @@ void bluetooth_connection_checker();
 void vibrator(bool);
 // Step count
 // Base on the result of this webpage http://www.analog.com/cn/analog-dialogue/articles/pedometer-design-3-axis-digital-acceler.html by Neil Zhao
+// Initialize containers in order to store samples in three axes
 float x_accel[MAX_LENGTH];
 float y_accel[MAX_LENGTH];
 float z_accel[MAX_LENGTH];
-float x_dynamic_threshold = 0;	// To store samples in three axes
-float y_dynamic_threshold = 0;
-float z_dynamic_threshold = 0;
-float x_dynamic_precision = 0;	// To avoid high frequency noise due to unknown reasons
-float y_dynamic_precision = 0;
-float z_dynamic_precision = 0;
-short counter = 0;				// Init counter for storing samples
+// Dynamic thresholds
+// As they can update every 50 samples, they can provide much more accurate measure compare to static thresholds
+// With their ability to evolve, they can quickly accommodate to their present environment
+float* dynamic_thresholds = [0,0,0]; // 0 -> x, 1 -> y, 2 -> z
+// Dynamic precisions
+// To avoid high frequency noise due to unknown reasons
+// Due to their ability to evolve every 50 samples just like the thresholds, these precisions can self-evolve to accommodate the environment
+float* dynamic_precisions = [0,0,0]	// 0 -> x, 1 -> y, 2 -> z
+short counter = 0;					// Init counter for storing samples
 long lastsample_time = 0;
 float threshold_calculator(float *);
 float precision_calculator(float *);
 float precision_checker(float *, float, float);
+float * max_change(float *, float *, float *);
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
@@ -192,6 +199,7 @@ void loop() {
 		y_accel[counter] = precision_checker(y_accel, aaReal.y, y_dynamic_precision);
 		z_accel[counter] = precision_checker(z_accel, aaReal.z, z_dynamic_precision);
 		// Check if there is any step
+
 	}
 
   // Check for bluetooth connection
@@ -319,4 +327,8 @@ float precision_checker(float * data, float new_data, float precision){ // Avoid
 	// If the new_data is invalid, discard it and return the data[counter-1]
 	if(abs(new_data-data[counter-1]) > precision) return new_data;
 	else return data[counter-1];
+}
+
+float * max_change(float * x, float * y, float * z,){
+	max(max(, ),);
 }
