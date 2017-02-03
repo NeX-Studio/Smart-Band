@@ -79,20 +79,22 @@ void vibrator(bool);
 float x_accel[MAX_LENGTH];
 float y_accel[MAX_LENGTH];
 float z_accel[MAX_LENGTH];
+float* greatest_axis;
+float greatest_axis_threshold;
 // Dynamic thresholds
 // As they can update every 50 samples, they can provide much more accurate measure compare to static thresholds
 // With their ability to evolve, they can quickly accommodate to their present environment
-float* dynamic_thresholds = [0,0,0]; // 0 -> x, 1 -> y, 2 -> z
+float dynamic_thresholds[3] = {0,0,0}; // 0 -> x, 1 -> y, 2 -> z
 // Dynamic precisions
 // To avoid high frequency noise due to unknown reasons
 // Due to their ability to evolve every 50 samples just like the thresholds, these precisions can self-evolve to accommodate the environment
-float* dynamic_precisions = [0,0,0]	// 0 -> x, 1 -> y, 2 -> z
+float dynamic_precisions[3] = {0,0,0}	// 0 -> x, 1 -> y, 2 -> z
 short counter = 0;					// Init counter for storing samples
 long lastsample_time = 0;
 float threshold_calculator(float *);
 float precision_calculator(float *);
 float precision_checker(float *, float, float);
-float * max_change(float *, float *, float *);
+float * max_change(float *, float *);
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
@@ -195,10 +197,17 @@ void loop() {
 	}
 	if(counter != 0){
 		// Adding new samples
-		x_accel[counter] = precision_checker(x_accel, aaReal.x, x_dynamic_precision);
-		y_accel[counter] = precision_checker(y_accel, aaReal.y, y_dynamic_precision);
-		z_accel[counter] = precision_checker(z_accel, aaReal.z, z_dynamic_precision);
+		x_accel[counter] = precision_checker(x_accel, aaReal.x, dynamic_precisions[X_AXIS]);
+		y_accel[counter] = precision_checker(y_accel, aaReal.y, dynamic_precisions[Y_AXIS]);
+		z_accel[counter] = precision_checker(z_accel, aaReal.z, dynamic_precisions[Z_AXIS]);
 		// Check if there is any step
+		// First we need to find the axis that has greatest diff
+		greatest_axis = max_change(max_change(x_accel,y_accel),max_change(x_accel,z_accel));
+		// Find the corresponding threshold
+		if(greatest_axis == x_accel) greatest_axis_precision = dynamic_thresholds[X_AXIS];
+		else if(greatest_axis == y_accel) greatest_axis_precision = dynamic_thresholds[Y_AXIS];
+		else if(greatest_axis == z_accel) greatest_axis_precision = dynamic_thresholds[Z_AXIS];
+		// Then we should check if the change in this axis cross its threshold
 
 	}
 
@@ -329,6 +338,8 @@ float precision_checker(float * data, float new_data, float precision){ // Avoid
 	else return data[counter-1];
 }
 
-float * max_change(float * x, float * y, float * z,){
-	max(max(, ),);
+float * max_change(float * src1, float * src2){
+	if(abs(src1[counter]-src1[counter-1])>abs(src2[counter]-src2[counter-1])) return src1;		// If the change in src1 is greater than the src2 one
+	else if(abs(src1[counter]-src1[counter-1])<abs(src2[counter]-src2[counter-1])) return src2;	// If the change in src2 is greater than the src1 one
+	else return src1;	// Return src1 if their diffs are equal
 }
