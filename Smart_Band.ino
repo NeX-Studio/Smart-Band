@@ -26,6 +26,7 @@
 
 // Step count
 #define MAX_LENGTH 50
+#define Z_ACCEL_OFFSET 4200
 #define X_AXIS 0
 #define Y_AXIS 1
 #define Z_AXIS 2
@@ -93,7 +94,7 @@ float dynamic_thresholds[3] = {0,0,0}; // 0 -> x, 1 -> y, 2 -> z
 // Dynamic precisions
 // To avoid high frequency noise due to unknown reasons
 // Due to their ability to evolve every 50 samples just like the thresholds, these precisions can self-evolve to accommodate the environment
-float dynamic_precisions[3] = {0,0,0}	// 0 -> x, 1 -> y, 2 -> z
+float dynamic_precisions[3] = {0,0,0};	// 0 -> x, 1 -> y, 2 -> z
 float aaRealsensor[3];
 long timer[2];
 short counter = 0;					// Init counter for storing samples
@@ -112,11 +113,8 @@ void setup() {
   Serial.println("System initializing...");
   //Serial.println("Initializing modules...");
   Wire.begin();
-    Serial.println("System initializing...");
   Wire.setClock(400000);
-    Serial.println("System initializing...");
   u8x8.begin();
-   Serial.println("System initializing...");
   FastLED.addLeds<WS2811, LED_PIN, RGB>(leds, NUM_LEDS);
   Rtc.Begin();
   //mpu.initialize();
@@ -167,7 +165,7 @@ void setup() {
   pinMode(VIBRATOR_PIN, OUTPUT);
   pinMode(BLUETOOTH_STATE_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  //Serial.println("Initialization completed");
+  Serial.println("Initialization completed");
   //Finish initialization
 }
 
@@ -198,7 +196,10 @@ void loop() {
     	timer[counter%2] = millis();					// Store the time arduino reads the data
     	aaRealsensor[0] = aaReal.x;
     	aaRealsensor[1] = aaReal.y;
-		aaRealsensor[2] = aaReal.z;
+		  aaRealsensor[2] = aaReal.z-Z_ACCEL_OFFSET; // Try to scale data
+      Serial.print(aaRealsensor[0]);
+      Serial.print(",");
+      Serial.println(dynamic_precisions[0]);
     /*
     Serial.print("ypr\t");
     Serial.print(ypr[0] * 180 / M_PI);
@@ -219,11 +220,20 @@ void loop() {
 				break;
 			}
 		}
+   /*
+   Serial.print("Threshold: ");
+   Serial.print(greatest_axis_threshold);
+   Serial.print("\tChange: ");
+   Serial.print(greatest_axis[counter]);
+   Serial.print(greatest_axis[counter-1]);
+   Serial.print("\tX_Precision: ");
+   Serial.println(dynamic_precisions[0]);*/
 		if(greatest_axis[counter] < greatest_axis_threshold && greatest_axis[counter-1] > greatest_axis_threshold){	// Then we should check if the change in this axis cross its threshold
 			if(abs(timer[0]-timer[1]) > MIN_STEP_INTERVAL && abs(timer[0]-timer[1]) < MAX_STEP_INTERVAL) {			// Check if this step is valid
 				steps++;
 				Serial.println("One step!");
 		}
+	}
 	}
 	else if(counter == 0) for(int i = 0; i < 3; i++) accel[i][counter] = aaRealsensor[i]; // Can we use the 50th data?
   bluetooth_connection_checker();	  // Check for bluetooth connection
@@ -237,7 +247,6 @@ void loop() {
 }
 
   else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
-   Serial.println("System initializing...");
   // Switching states
   if (display_state == MAX_DISPLAY_STATE) display_state = CONNECTION_STATE; // Switch back
   u8x8.setFont(u8x8_font_amstrad_cpc_extended_f);
@@ -264,6 +273,7 @@ void loop() {
     		pre_state_check(u8x8);
       		u8x8.home();// Reset cursor
       		u8x8.print("Today's steps: ");
+          u8x8.print(steps);
       	break;
     	case SLEEP_QUALITY: // quality & quantity
     		pre_state_check(u8x8);
@@ -346,9 +356,9 @@ float precision_calculator(float * data){
 	for(int i = 1; i < MAX_LENGTH; i++){
 		total_change+=abs(data[i]-data[i-1]);	// Acquire total change
 	}
-	return total_change/float(MAX_LENGTH);		// Avoid integer divison
+	return total_change/50*float(MAX_LENGTH);		// Avoid integer divison
 }
-
+// Problem Here!
 float precision_checker(float * data, float new_data, float precision){ // Avoid noise
 	// The new_data is valid only if the change in acceleration is greator than the precision
 	// If the new_data is invalid, discard it and return the data[counter-1]
