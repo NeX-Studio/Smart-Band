@@ -63,25 +63,27 @@ volatile bool mpuInterrupt = false;
 void dmpDataReady() {
 	mpuInterrupt = true;
 }
+
 // RTC vars & function
 RtcDateTime now; //
 char* now_char;
 char* printDateTime(const RtcDateTime& dt);
+
 // Interface vars & function
 bool button_down = false;
 char display_state = -1;
 char pre_display_state = -1;
 void pre_state_check(U8X8_SSD1306_128X32_UNIVISION_HW_I2C);
+
 // Bluetooth connection
 bool bluetooth_connection = false;
 void bluetooth_connection_checker();
 void vibrator(bool);
+
 //--------------------------------Step count--------------------------------//
 // Base on the result of this webpage http://www.analog.com/cn/analog-dialogue/articles/pedometer-design-3-axis-digital-acceler.html by Neil Zhao
 // Initialize containers in order to store samples in three axes
-float x_accel[MAX_LENGTH];	// Maybe we can change these to a 2-dimension array
-float y_accel[MAX_LENGTH];
-float z_accel[MAX_LENGTH];
+float accel[3][MAX_LENGTH];
 float* greatest_axis;
 float greatest_axis_threshold;
 // Dynamic thresholds
@@ -92,13 +94,15 @@ float dynamic_thresholds[3] = {0,0,0}; // 0 -> x, 1 -> y, 2 -> z
 // To avoid high frequency noise due to unknown reasons
 // Due to their ability to evolve every 50 samples just like the thresholds, these precisions can self-evolve to accommodate the environment
 float dynamic_precisions[3] = {0,0,0}	// 0 -> x, 1 -> y, 2 -> z
-long timer[2] =;
+float aaRealsensor[3];
+long timer[2];
 short counter = 0;					// Init counter for storing samples
 long steps = 0;
 float threshold_calculator(float *);
 float precision_calculator(float *);
 float precision_checker(float *, float, float);
 float * max_change(float *, float *);
+
 //-------------------------------------------Main Function------------------------------------------------------//
 //-------------------------------------------Initialization-----------------------------------------------------//
 void setup() {
@@ -192,6 +196,9 @@ void loop() {
     	mpu.dmpGetLinearAccel(&aaReal,&aa,&gravity);	// Get acceleration
     	mpu.dmpGetYawPitchRoll(ypr, &qu, &gravity);		// Get YawPitchRoll
     	timer[counter%2] = millis();					// Store the time arduino reads the data
+    	aaRealsensor[0] = aaReal.x;
+    	aaRealsensor[1] = aaReal.y;
+		aaRealsensor[2] = aaReal.z;
     /*
     Serial.print("ypr\t");
     Serial.print(ypr[0] * 180 / M_PI);
@@ -203,33 +210,23 @@ void loop() {
 
 	}
 	if(counter != 0){
-		// Adding new samples
-		x_accel[counter] = precision_checker(x_accel, aaReal.x, dynamic_precisions[X_AXIS]);
-		y_accel[counter] = precision_checker(y_accel, aaReal.y, dynamic_precisions[Y_AXIS]);
-		z_accel[counter] = precision_checker(z_accel, aaReal.z, dynamic_precisions[Z_AXIS]);
+		for(int i = 0; i < 3; i++) accel[i][counter] = precision_checker(accel[i], aaRealsensor[i], dynamic_precisions[i]);	// Adding new samples
 		// Check if there is any step
-		// First we need to find the axis that has greatest diff
-		greatest_axis = max_change(max_change(x_accel,y_accel),max_change(x_accel,z_accel));
-		// Find the corresponding threshold
-		if(greatest_axis == x_accel) greatest_axis_threshold = dynamic_thresholds[X_AXIS];
-		else if(greatest_axis == y_accel) greatest_axis_threshold = dynamic_thresholds[Y_AXIS];
-		else if(greatest_axis == z_accel) greatest_axis_threshold = dynamic_thresholds[Z_AXIS];
-		// Then we should check if the change in this axis cross its threshold
-		if(greatest_axis[counter] < greatest_axis_threshold && greatest_axis[counter-1] > greatest_axis_threshold){		
-			if(abs(timer[0]-timer[1]) > MIN_STEP_INTERVAL && abs(timer[0]-timer[1]) < MAX_STEP_INTERVAL) {		// Check if this step is valid
+		greatest_axis = max_change(max_change(accel[X_AXIS], accel[Y_AXIS]),max_change(accel[X_AXIS], accel[Z_AXIS]));		// First we need to find the axis that has greatest diff
+		for(int i = 0; i < 3; i++){		// Then we should find the corresponding threshold
+			if(greatest_axis == accel[i]){
+				greatest_axis_threshold = dynamic_thresholds[i];
+				break;
+			}
+		}
+		if(greatest_axis[counter] < greatest_axis_threshold && greatest_axis[counter-1] > greatest_axis_threshold){	// Then we should check if the change in this axis cross its threshold
+			if(abs(timer[0]-timer[1]) > MIN_STEP_INTERVAL && abs(timer[0]-timer[1]) < MAX_STEP_INTERVAL) {			// Check if this step is valid
 				steps++;
 				Serial.println("One step!");
 		}
 	}
-	else if(counter == 0){ // Can we use the 50th data?
-		x_accel[counter] = aaReal.x;
-		y_accel[counter] = aaReal.y;
-		z_accel[counter] = aaReal.z;
-	}
-
-  // Check for bluetooth connection
-  //Serial.println(bluetooth_connection);
-  bluetooth_connection_checker();
+	else if(counter == 0) for(int i = 0; i < 3; i++) accel[i][counter] = aaRealsensor[i]; // Can we use the 50th data?
+  bluetooth_connection_checker();	  // Check for bluetooth connection
   //----------------------------------------Decode serial data---------------------------------//
 
   //----------------------------------------Display--------------------------------------------//
@@ -241,7 +238,6 @@ void loop() {
 
   else if (digitalRead(BUTTON_PIN) == LOW && button_down) button_down = false; // Check if already released the button!
    Serial.println("System initializing...");
-  //Serial.println(bluetooth_connection);
   // Switching states
   if (display_state == MAX_DISPLAY_STATE) display_state = CONNECTION_STATE; // Switch back
   u8x8.setFont(u8x8_font_amstrad_cpc_extended_f);
@@ -282,12 +278,10 @@ void loop() {
   	counter++;						// Update counter
   	if(counter == 50) counter = 0;	//Reset counter
   	// Update threshold & precision for each axis
-  	dynamic_thresholds[X_AXIS] = threshold_calculator(x_accel);
-  	dynamic_thresholds[Y_AXIS] = threshold_calculator(y_accel);
-  	dynamic_thresholds[Z_AXIS] = threshold_calculator(z_accel);
-  	dynamic_precisions[X_AXIS] = precision_calculator(x_accel);
-  	dynamic_precisions[Y_AXIS] = precision_calculator(y_accel);
-  	dynamic_precisions[Z_AXIS] = precision_calculator(z_accel);
+  	for(int i = 0; i < 3; i++){
+  		dynamic_thresholds[i] = threshold_calculator(accel[i]);
+  		dynamic_precisions[i] = precision_calculator(accel[i]);
+  	}
   	Serial.print("Steps: ");
   	Serial.println(steps);
 }
@@ -312,7 +306,6 @@ char* printDateTime(const RtcDateTime& dt){
 		dt.Hour(),
 		dt.Minute(),
 		dt.Second() );
-  	//Serial.println(datestring);
   	return datestring;
 }
 
@@ -323,8 +316,7 @@ void bluetooth_connection_checker() {
 	else {
 		if (bluetooth_connection==true) {
 			vibrator(true);
-      	//Serial.println("Lost connection");
-      	display_state = CONNECTION_STATE;
+      		display_state = CONNECTION_STATE;
       	}
       	bluetooth_connection = false;
       	vibrator(false);
