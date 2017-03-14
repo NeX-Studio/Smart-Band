@@ -197,9 +197,10 @@ void loop() {
     	aaRealsensor[0] = aaReal.x;
     	aaRealsensor[1] = aaReal.y;
 		  aaRealsensor[2] = aaReal.z-Z_ACCEL_OFFSET; // Try to scale data
-      Serial.print(aaRealsensor[0]);
-      Serial.print(",");
-      Serial.println(dynamic_precisions[0]);
+      // Step count
+      //Serial.print(aaRealsensor[0]);
+      //Serial.print(",");
+      //Serial.println(dynamic_precisions[0]);
     /*
     Serial.print("ypr\t");
     Serial.print(ypr[0] * 180 / M_PI);
@@ -210,7 +211,7 @@ void loop() {
     */
 
 	}
-	if(counter != 0){
+	/*if(counter != 0){
 		for(int i = 0; i < 3; i++) accel[i][counter] = precision_checker(accel[i], aaRealsensor[i], dynamic_precisions[i]);	// Adding new samples
 		// Check if there is any step
 		greatest_axis = max_change(max_change(accel[X_AXIS], accel[Y_AXIS]),max_change(accel[X_AXIS], accel[Z_AXIS]));		// First we need to find the axis that has greatest diff
@@ -227,15 +228,16 @@ void loop() {
    Serial.print(greatest_axis[counter]);
    Serial.print(greatest_axis[counter-1]);
    Serial.print("\tX_Precision: ");
-   Serial.println(dynamic_precisions[0]);*/
+   Serial.println(dynamic_precisions[0]);
 		if(greatest_axis[counter] < greatest_axis_threshold && greatest_axis[counter-1] > greatest_axis_threshold){	// Then we should check if the change in this axis cross its threshold
 			if(abs(timer[0]-timer[1]) > MIN_STEP_INTERVAL && abs(timer[0]-timer[1]) < MAX_STEP_INTERVAL) {			// Check if this step is valid
 				steps++;
 				Serial.println("One step!");
 		}
 	}
+ 
 	}
-	else if(counter == 0) for(int i = 0; i < 3; i++) accel[i][counter] = aaRealsensor[i]; // Can we use the 50th data?
+	else if(counter == 0) for(int i = 0; i < 3; i++) accel[i][counter] = aaRealsensor[i]; // Can we use the 50th data?*/
   bluetooth_connection_checker();	  // Check for bluetooth connection
   //----------------------------------------Decode serial data---------------------------------//
 
@@ -292,8 +294,23 @@ void loop() {
   		dynamic_thresholds[i] = threshold_calculator(accel[i]);
   		dynamic_precisions[i] = precision_calculator(accel[i]);
   	}
-  	Serial.print("Steps: ");
-  	Serial.println(steps);
+  	//Serial.print("Steps: ");
+  	//Serial.println(steps);
+    // Send data to phone?
+    Serial.print("*");
+    Serial.print(ypr[0]); // Yaw
+    Serial.print(",");
+    Serial.print(ypr[1]); // Pitch
+    Serial.print(",");
+    Serial.print(ypr[2]); // Roll
+    Serial.print(",");
+    Serial.print(aaRealsensor[0]); // X
+    Serial.print(",");
+    Serial.print(aaRealsensor[1]); // Y 
+    Serial.print(",");
+    Serial.print(aaRealsensor[2]); // Z
+    Serial.print(",");
+    Serial.println(now_char);    
 }
 
 //----------------------------------Functions--------------------------------//
